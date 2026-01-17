@@ -23,7 +23,7 @@
 #define STREAM_ROUTE_PEEK_MAX 16
 
 typedef enum {
-    NGX_STREAM_ROUTE_NOT_DECIDED = -1,
+    NGX_STREAM_ROUTE_NOT_DECIDED,
     NGX_STREAM_ROUTE_DEFAULT,
     NGX_STREAM_ROUTE_HTTP,
     NGX_STREAM_ROUTE_PROXY_PLAIN,
@@ -38,8 +38,10 @@ typedef struct {
 } ngx_stream_route_srv_conf_t;
 
 typedef struct {
+    u_char line_buf[STREAM_ROUTE_PEEK_MAX];
+    ngx_str_t line;
     ngx_str_t *stream_route;
-    ngx_uint_t done;
+    ngx_stream_route_decision_t decision;
 } ngx_stream_route_ctx_t;
 
 extern ngx_module_t ngx_stream_route_module;
@@ -47,7 +49,7 @@ extern ngx_module_t ngx_stream_route_module;
 static ngx_int_t
 ngx_stream_route_variable(ngx_stream_session_t *s, ngx_stream_variable_value_t *v, uintptr_t data) {
     ngx_stream_route_ctx_t *ctx = ngx_stream_get_module_ctx(s, ngx_stream_route_module);
-    if (ctx == NULL || !ctx->done) {
+    if (ctx == NULL || ctx->decision == NGX_STREAM_ROUTE_NOT_DECIDED) {
         /* variable should be used after preread */
         v->not_found = 1;
         return NGX_OK;
@@ -104,7 +106,7 @@ static ngx_int_t ngx_stream_route_preread(ngx_stream_session_t *s) {
     ngx_stream_route_srv_conf_t *scf = ngx_stream_get_module_srv_conf(s, ngx_stream_route_module);
     ngx_stream_route_ctx_t *ctx = ngx_stream_get_module_ctx(s, ngx_stream_route_module);
 
-    if (ctx != NULL && ctx->done) {
+    if (ctx != NULL && ctx->decision != NGX_STREAM_ROUTE_NOT_DECIDED) {
         return NGX_OK;
     }
 
@@ -113,11 +115,11 @@ static ngx_int_t ngx_stream_route_preread(ngx_stream_session_t *s) {
         if (ctx == NULL) {
             return NGX_ERROR;
         }
+        ctx->line.data = ctx->line_buf;
         ngx_stream_set_ctx(s, ctx, ngx_stream_route_module);
     }
 
-    u_char buf[STREAM_ROUTE_PEEK_MAX];
-    ssize_t n = recv(c->fd, buf, sizeof(buf), MSG_PEEK);
+    ssize_t n = recv(c->fd, ctx->line_buf, sizeof(ctx->line_buf), MSG_PEEK);
     if (n == 0) { /* EOF, nothing to route */
         return NGX_OK;
     }
@@ -129,16 +131,13 @@ static ngx_int_t ngx_stream_route_preread(ngx_stream_session_t *s) {
         return NGX_ERROR;
     }
 
-    ngx_stream_route_decision_t decision = stream_route_first_line_parse(buf, n);
-
-#if NGX_DEBUG
-    ngx_str_t line = {.data = buf, .len = n};
+    ctx->line.len = n;
+    ctx->decision = stream_route_first_line_parse(ctx->line.data, ctx->line.len);
     ngx_log_debug2(
-        NGX_LOG_DEBUG_STREAM, c->log, 0, "request line=%V decision=%ud", &line, decision
+        NGX_LOG_DEBUG_STREAM, c->log, 0, "request line=%V decision=%ud", &ctx->line, ctx->decision
     );
-#endif
 
-    switch (decision) {
+    switch (ctx->decision) {
         case NGX_STREAM_ROUTE_NOT_DECIDED:
             return NGX_AGAIN;
         case NGX_STREAM_ROUTE_PROXY_CONNECT:
@@ -153,23 +152,26 @@ static ngx_int_t ngx_stream_route_preread(ngx_stream_session_t *s) {
         case NGX_STREAM_ROUTE_DEFAULT:
             ctx->stream_route = &scf->route_default;
             break;
+        default:
+            ngx_log_error(NGX_LOG_ALERT, c->log, 0, "unknown decision %ud", ctx->decision);
+            return NGX_ERROR;
     }
 
-    ctx->done = 1;
     return NGX_OK;
 }
 
 static ngx_int_t ngx_stream_route_postconf(ngx_conf_t *cf) {
-    ngx_stream_variable_t *var;
+    ngx_stream_variable_t *stream_route_var;
     static ngx_str_t name = ngx_string("stream_route");
 
-    var = ngx_stream_add_variable(cf, &name, NGX_STREAM_VAR_CHANGEABLE | NGX_STREAM_VAR_INDEXED);
-    if (var == NULL) {
+    stream_route_var =
+        ngx_stream_add_variable(cf, &name, NGX_STREAM_VAR_NOCACHEABLE | NGX_STREAM_VAR_INDEXED);
+    if (stream_route_var == NULL) {
         return NGX_ERROR;
     }
 
-    var->get_handler = ngx_stream_route_variable;
-    var->data = 0;
+    stream_route_var->get_handler = ngx_stream_route_variable;
+    stream_route_var->data = 0;
 
     ngx_stream_core_main_conf_t *cmcf;
     ngx_stream_handler_pt *h;
@@ -196,13 +198,17 @@ static char *ngx_stream_route_merge_srv_conf(ngx_conf_t *cf, void *parent, void 
     ngx_stream_route_srv_conf_t *prev = parent;
     ngx_stream_route_srv_conf_t *conf = child;
 
-    ngx_conf_merge_str_value(conf->route_default, prev->route_default, STREAM_ROUTE_DEFAULT)
+    ngx_conf_merge_str_value(conf->route_default, prev->route_default, STREAM_ROUTE_DEFAULT);
 
-        /* connect/plain can be empty => fallback to route_default */
-        ngx_conf_merge_str_value(conf->route_proxy_connect, prev->route_proxy_connect, "")
-            ngx_conf_merge_str_value(conf->route_proxy_plain, prev->route_proxy_plain, "")
+    /* connect/plain can be empty => fallback to route_default */
+    ngx_conf_merge_str_value(conf->route_proxy_connect, prev->route_proxy_connect, "");
+    if (!conf->route_proxy_connect.len) conf->route_proxy_connect = conf->route_default;
+    ngx_conf_merge_str_value(conf->route_proxy_plain, prev->route_proxy_plain, "");
+    if (!conf->route_proxy_plain.len) conf->route_proxy_plain = conf->route_default;
+    ngx_conf_merge_str_value(conf->route_http, prev->route_http, "");
+    if (!conf->route_http.len) conf->route_http = conf->route_default;
 
-                return NGX_CONF_OK;
+    return NGX_CONF_OK;
 }
 
 static ngx_command_t ngx_stream_route_commands[] = {

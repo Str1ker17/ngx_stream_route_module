@@ -26,3 +26,9 @@ clean:
 
 test:
 	$(MAKE) -C tests
+
+run:
+	./objs-module/nginx -p $(PWD) -c nginx.conf -e /dev/stderr
+
+run_rr:
+	rr record ./objs-module/nginx -p $(PWD) -c nginx.conf -e /dev/stderr -g "master_process off;"
