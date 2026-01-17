@@ -1,20 +1,28 @@
-.PHONY: configure all binary modules clean
+.PHONY: configure all binary modules clean test
 
 BUILDDIR ?= objs-module
+CFLAGS ?= -O0 -ggdb2
+LDFLAGS ?=
 
-all: binary modules
+MAKE := make --no-print-directory --no-builtin-rules --no-builtin-variables
 
-configure: $(BUILDDIR)/Makefile
+all: binary modules test
+
+configure: $(BUILDDIR)/Makefile Makefile
 
 objs-module/Makefile:
 	mkdir -p $(BUILDDIR)
-	cd nginx && ./auto/configure --with-stream --with-debug --add-dynamic-module=$(PWD) --builddir=$(PWD)/$(BUILDDIR)
+	cd nginx && ./auto/configure --with-http_v2_module --with-stream --with-debug --with-cc-opt="$(CFLAGS)" --with-ld-opt="$(LDFLAGS)" --add-dynamic-module=$(PWD) --builddir=$(PWD)/$(BUILDDIR)
 
 binary: configure
-	make -C nginx -f $(PWD)/$(BUILDDIR)/Makefile binary
+	$(MAKE) -C nginx -f $(PWD)/$(BUILDDIR)/Makefile binary
 
 modules: configure
-	make -C nginx -f $(PWD)/$(BUILDDIR)/Makefile modules
+	$(MAKE) -C nginx -f $(PWD)/$(BUILDDIR)/Makefile modules
 
 clean:
+	$(MAKE) -C tests clean
 	rm -rf objs-module
+
+test:
+	$(MAKE) -C tests
