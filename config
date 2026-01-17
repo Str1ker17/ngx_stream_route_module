@@ -1,0 +1,9 @@
+ngx_addon_name=ngx_stream_route_module
+ngx_module_name=ngx_stream_route_module
+ngx_module_order=""
+
+ngx_module_srcs="
+    $ngx_addon_dir/ngx_stream_route_module.c
+"
+
+. auto/module
