@@ -12,7 +12,7 @@ configure: $(BUILDDIR)/Makefile Makefile
 
 objs-module/Makefile:
 	mkdir -p $(BUILDDIR)
-	cd nginx && ./auto/configure --with-http_v2_module --with-stream --with-debug --with-cc-opt="$(CFLAGS)" --with-ld-opt="$(LDFLAGS)" --add-dynamic-module=$(PWD) --builddir=$(PWD)/$(BUILDDIR)
+	cd nginx && ./auto/configure --with-http_v2_module --with-stream --with-stream_realip_module --with-stream_ssl_module --with-debug --with-cc-opt="$(CFLAGS)" --with-ld-opt="$(LDFLAGS)" --add-dynamic-module=$(PWD) --builddir=$(PWD)/$(BUILDDIR)
 
 binary: configure
 	$(MAKE) -C nginx -f $(PWD)/$(BUILDDIR)/Makefile binary
