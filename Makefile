@@ -22,7 +22,7 @@ modules: configure
 
 clean:
 	$(MAKE) -C tests clean
-	rm -rf objs-module
+	rm -rf objs-module build4u
 
 test:
 	$(MAKE) -C tests

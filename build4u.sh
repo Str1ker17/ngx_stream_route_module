@@ -112,9 +112,10 @@ function obtain_nginx_sources() {
     local nginx_version="${1}"
     local src_tar_url="https://nginx.org/download/nginx-${nginx_version}.tar.gz"
     local extra_tar_flags=("--strip-components=1")
-    local src_tar_rel="${src_tar_url##*/}"
+    local src_tar_rel="build4u/${src_tar_url##*/}"
+    mkdir -p build4u
     wget --no-verbose --output-document="${src_tar_rel}" "${src_tar_url}"
-    local nginx_src_git="nginx-${nginx_version}"
+    local nginx_src_git="build4u/nginx-${nginx_version}"
     if [ ! -f "${nginx_src_git}/configure" ] ; then
         mkdir -p "${nginx_src_git}"
         tar -z -x -f "${src_tar_rel}" -C "${nginx_src_git}" "${extra_tar_flags[@]}"
@@ -140,12 +141,12 @@ function build4u_main() {
     log "[i] Nginx source dir: ${nginx_src_dir}"
     log "[i] Nginx build dir: ${nginx_build_dir}"
 
-    (module_dir="${PWD}" && cd "${nginx_src_dir}" && ./configure ${nginx_configure_args} "${@:2}" --with-cc-opt="-O2 -ggdb2 -ffunction-sections -fdata-sections ${nginx_configure_cflags}" --with-ld-opt="-Wl,--gc-sections" --with-debug --with-stream --builddir="${nginx_build_dir}" --add-dynamic-module="${module_dir}")
-    make -C "${nginx_src_dir}" -f "${nginx_build_dir}/Makefile" -j$(nproc) modules
+    (module_dir="${PWD}" && cd "${nginx_src_dir}" && ./configure ${nginx_configure_args} "${@:2}" --with-cc-opt="-O2 -ggdb2 -ffunction-sections -fdata-sections ${nginx_configure_cflags}" --with-ld-opt="-Wl,--gc-sections" --with-debug --with-stream=dynamic --builddir="${nginx_build_dir}" --add-dynamic-module="${module_dir}")
+    make -C "${nginx_src_dir}" -f "${nginx_build_dir}/Makefile" -j$(nproc) build/ngx_stream_route_module.so
 
     local module_name="ngx_stream_route_module.so"
     local module_file="${nginx_src_dir}/${nginx_build_dir}/${module_name}"
-    objcopy --strip-all "${module_file}" "${module_name}"
+    objcopy --strip-all "${module_file}" "build4u/${module_name}"
     log "[i] ${module_file} is built"
 
     local nginx_module_signature34_full="$(determine_nginx_signature34 "${module_file}")"
@@ -156,7 +157,7 @@ function build4u_main() {
         log "[x]     module:    '${nginx_module_signature34}'"
         return 1
     fi
-    log "[i] DONE successfully"
+    log "[i] DONE successfully, see build4u/${module_name} for stripped version"
 }
 
 build4u_main "${@}"
