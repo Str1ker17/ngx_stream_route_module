@@ -30,7 +30,7 @@
 #include <errno.h>
 #include <sys/socket.h>
 
-/* The longest string we need to decde for sure is "DELETE https://" which is 15 chars long. */
+/* The longest string we need to decide for sure is "DELETE https://" which is 15 chars long. */
 #define NGX_STREAM_ROUTE_PEEK_MAX 16
 
 typedef enum {
@@ -176,7 +176,7 @@ static ngx_int_t ngx_stream_route_preread(ngx_stream_session_t *s) {
         if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
             return NGX_AGAIN;
         }
-        ngx_log_error(NGX_LOG_ERR, c->log, errno, "recv(c->fd, ..., MSK_PEEK) = %z", n);
+        ngx_log_error(NGX_LOG_ERR, c->log, errno, "recv(c->fd, ..., MSG_PEEK) = %z", n);
         return NGX_ERROR;
     }
 
