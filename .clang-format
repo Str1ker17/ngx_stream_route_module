@@ -2,7 +2,7 @@ AlignAfterOpenBracket: BlockIndent
 BinPackArguments: false
 BitFieldColonSpacing: After
 BreakBeforeBraces: Attach
-ColumnLimit: 100
+ColumnLimit: 120
 IndentCaseBlocks: false
 IndentCaseLabels: true
 IndentGotoLabels: false

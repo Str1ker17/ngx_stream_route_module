@@ -30,5 +30,8 @@ test:
 run:
 	./objs-module/nginx -p $(PWD) -c nginx.conf -e /dev/stderr
 
+run_debug:
+	gdb --args ./objs-module/nginx -p $(PWD) -c nginx.conf -e /dev/stderr -g "master_process off;"
+
 run_rr:
 	rr record ./objs-module/nginx -p $(PWD) -c nginx.conf -e /dev/stderr -g "master_process off;"
