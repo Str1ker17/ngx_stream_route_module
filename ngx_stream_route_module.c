@@ -30,7 +30,6 @@
 #include <errno.h>
 #include <sys/socket.h>
 
-#define NGX_STREAM_ROUTE_PROXY_PROTOCOL_MAX 108
 /* The longest string we need to decide for sure is "DELETE https://" which is 15 chars long. */
 #define NGX_STREAM_ROUTE_PEEK_MAX 16
 
@@ -69,7 +68,7 @@ typedef struct {
 } ngx_stream_route_srv_conf_t;
 
 typedef struct {
-    u_char line_buf[NGX_STREAM_ROUTE_PROXY_PROTOCOL_MAX + NGX_STREAM_ROUTE_PEEK_MAX];
+    u_char line_buf[NGX_STREAM_ROUTE_PEEK_MAX];
     ngx_str_t line;
     ngx_stream_route_type_t decision;
 } ngx_stream_route_ctx_t;
@@ -181,14 +180,7 @@ static ngx_int_t ngx_stream_route_preread(ngx_stream_session_t *s) {
         return NGX_ERROR;
     }
 
-    if (s->connection->proxy_protocol) {
-        /* May be NULL only if s->connection->proxy_protocol is NULL. So nevermind. */
-        ctx->line.data = ngx_proxy_protocol_read(s->connection, ctx->line_buf, ctx->line_buf + n);
-        ctx->line.len = n - (ctx->line.data - ctx->line_buf);
-    } else {
-        ctx->line.len = n;
-    }
-
+    ctx->line.len = n;
     ctx->decision = stream_route_first_line_parse(ctx->line.data, ctx->line.len);
 
     ngx_log_debug2(
