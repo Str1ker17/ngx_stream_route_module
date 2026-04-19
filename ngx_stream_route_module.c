@@ -56,11 +56,13 @@ static const ngx_stream_variable_value_t ngx_stream_route_type_str[] = {
 typedef enum {
     NGX_STREAM_ROUTE_VARIABLE_TYPE,
     NGX_STREAM_ROUTE_VARIABLE_PROXY, /* Quickly answer "is proxy?" */
+    NGX_STREAM_ROUTE_VARIABLE_REQUEST_LINE,
 } ngx_stream_route_variable_t;
 
 static const ngx_str_t ngx_stream_route_variables[] = {
     [NGX_STREAM_ROUTE_VARIABLE_TYPE] = ngx_string("stream_route_type"),
     [NGX_STREAM_ROUTE_VARIABLE_PROXY] = ngx_string("stream_route_is_proxy"),
+    [NGX_STREAM_ROUTE_VARIABLE_REQUEST_LINE] = ngx_string("stream_route_request_line"),
 };
 
 typedef struct {
@@ -94,6 +96,10 @@ ngx_stream_route_variable(ngx_stream_session_t *s, ngx_stream_variable_value_t *
                                   ctx->decision == NGX_STREAM_ROUTE_TYPE_UNKNOWN)
                                      ? "0"
                                      : "1");
+            break;
+        case NGX_STREAM_ROUTE_VARIABLE_REQUEST_LINE:
+            v->len = (unsigned)ctx->line.len;
+            v->data = ctx->line.data;
             break;
         default:
             v->valid = 0;
